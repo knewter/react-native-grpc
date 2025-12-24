@@ -8,7 +8,7 @@ export class ServerInputStream implements GrpcServerInputStream {
   send(data: Uint8Array): Promise<void> {
     return Grpc.clientStreamingCall(this.callId, this.clientId, this.method, {
       data: fromByteArray(data),
-    });
+    }, {});
   }
   complete(): Promise<void> {
     return Grpc.finishClientStreaming(this.callId);

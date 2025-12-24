@@ -7,6 +7,14 @@
   "types": "lib/typescript/index.d.ts",
   "react-native": "src/index",
   "source": "src/index",
+  "codegenConfig": {
+    "name": "RNGrpcSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.reactnativegrpc"
+    }
+  },
   "files": [
     "src",
     "lib",

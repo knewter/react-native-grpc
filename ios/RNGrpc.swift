@@ -13,24 +13,26 @@ import NIOHPACK
 typealias GrpcCall = any ClientCall
 typealias GrpcConnection = ([String: Any], GRPCChannel)
 
-@objc(Grpc)
-class RNGrpc: RCTEventEmitter {
+/// Protocol for event emission delegation
+@objc protocol GrpcEventDelegate: AnyObject {
+    func sendGrpcEvent(name: String, body: NSDictionary)
+}
+
+@objc(RNGrpc)
+class RNGrpc: NSObject {
     private let group = PlatformSupport.makeEventLoopGroup(loopCount: System.coreCount)
 
     var calls = [Int: GrpcCall]()
     var connections = [Int: GrpcConnection]()
+
+    @objc weak var eventDelegate: GrpcEventDelegate?
 
     deinit {
         try! group.syncShutdownGracefully()
     }
 
     @objc
-    override func constantsToExport() -> [AnyHashable: Any]! {
-        [:]
-    }
-
-    @objc
-    override static func requiresMainQueueSetup() -> Bool {
+    static func requiresMainQueueSetup() -> Bool {
         false
     }
 
@@ -163,6 +165,13 @@ class RNGrpc: RCTEventEmitter {
         resolve(true)
     }
 
+    /// Dispatch event to delegate (Obj-C++ event emitter)
+    private func dispatchEvent(event: NSDictionary) {
+        DispatchQueue.main.async { [weak self] in
+            self?.eventDelegate?.sendGrpcEvent(name: "grpc-call", body: event)
+        }
+    }
+
     private func startGrpcCallWithId(callId: Int,
                                      id: Int,
                                      obj: NSDictionary,
@@ -188,12 +197,8 @@ class RNGrpc: RCTEventEmitter {
 
         var call: GrpcCall
 
-        var headers = [String: String]()
+        var responseHeaders = [String: String]()
         var trailers = [String: String]()
-
-        func dispatchEvent(event: NSDictionary) {
-            self.sendEvent(withName: "grpc-call", body: event)
-        }
 
         func handleResponseResult(result: Result<ByteBuffer, Error>) {
             switch result {
@@ -205,7 +210,7 @@ class RNGrpc: RCTEventEmitter {
                     "payload": data.base64EncodedString()
                 ]
 
-                dispatchEvent(event: event)
+                self.dispatchEvent(event: event)
             case .failure(let error):
                 var message = error.localizedDescription
                 var code = -1
@@ -231,7 +236,7 @@ class RNGrpc: RCTEventEmitter {
                     "trailers": NSDictionary(dictionary: trailers)
                 ]
 
-                dispatchEvent(event: event)
+                self.dispatchEvent(event: event)
             }
         }
 
@@ -268,7 +273,7 @@ class RNGrpc: RCTEventEmitter {
                     "payload": data.base64EncodedString()
                 ]
 
-                dispatchEvent(event: event)
+                self.dispatchEvent(event: event)
             })
 
             call = serverStreaming
@@ -278,16 +283,16 @@ class RNGrpc: RCTEventEmitter {
 
         call.initialMetadata.whenSuccess { result in
             for data in result {
-                headers[data.name] = data.value
+                responseHeaders[data.name] = data.value
             }
 
             let event: NSDictionary = [
                 "id": callId,
                 "type": "headers",
-                "payload": NSDictionary(dictionary: headers)
+                "payload": NSDictionary(dictionary: responseHeaders)
             ]
 
-            dispatchEvent(event: event)
+            self.dispatchEvent(event: event)
         }
 
         call.trailingMetadata.whenSuccess { result in
@@ -301,7 +306,7 @@ class RNGrpc: RCTEventEmitter {
                 "payload": NSDictionary(dictionary: trailers)
             ]
 
-            dispatchEvent(event: event)
+            self.dispatchEvent(event: event)
         }
 
         self.calls[callId] = call
@@ -402,10 +407,5 @@ class RNGrpc: RCTEventEmitter {
         }
 
         return try? GRPCChannelPool.with(configuration: config)
-    }
-
-    @objc
-    override func supportedEvents() -> [String] {
-        ["grpc-call"]
     }
 }

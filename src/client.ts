@@ -1,11 +1,8 @@
 import { AbortController, AbortSignal } from 'abort-controller';
 import { fromByteArray, toByteArray } from 'base64-js';
-import {
-  EmitterSubscription,
-  NativeEventEmitter,
-  NativeModules,
-} from 'react-native';
+import { EmitterSubscription } from 'react-native';
 import { GrpcError } from './errors';
+import { GrpcNative, GrpcEmitter } from './GrpcModule';
 import {
   GrpcServerStreamingCall,
   ServerOutputStream,
@@ -15,36 +12,6 @@ import { GrpcUnaryCall } from './unary';
 
 type GrpcRequestObject = {
   data: string;
-};
-
-type GrpcOptions = GrpcClientSettings;
-
-type GrpcType = {
-  setGrpcSettings(id: number, settings: GrpcOptions): void;
-  destroyClient(id: number): void;
-  unaryCall(
-    callId: number,
-    clientId: number,
-    path: string,
-    obj: GrpcRequestObject,
-    requestHeaders?: GrpcMetadata
-  ): Promise<void>;
-  serverStreamingCall(
-    callId: number,
-    clientId: number,
-    path: string,
-    obj: GrpcRequestObject,
-    requestHeaders?: GrpcMetadata
-  ): Promise<void>;
-  cancelGrpcCall: (id: number) => Promise<boolean>;
-  clientStreamingCall(
-    callId: number,
-    clientId: number,
-    path: string,
-    obj: GrpcRequestObject,
-    requestHeaders?: GrpcMetadata
-  ): Promise<void>;
-  finishClientStreaming(id: number): Promise<void>;
 };
 
 type GrpcEventType = 'response' | 'error' | 'headers' | 'trailers';
@@ -75,9 +42,8 @@ type GrpcEvent = {
   type: GrpcEventType;
 } & GrpcEventPayload;
 
-const { Grpc } = NativeModules as { Grpc: GrpcType };
-
-const Emitter = new NativeEventEmitter(NativeModules.Grpc);
+const Grpc = GrpcNative;
+const Emitter = GrpcEmitter;
 
 type Deferred<T> = {
   completed: boolean;
